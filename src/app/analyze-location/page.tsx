@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Papa from "papaparse"
-import { Search, ChevronDown, MapPin, Calendar, Clock, Globe, Sparkles, Target } from "lucide-react"
+import { Search, ChevronDown, MapPin, Calendar, Clock, Globe, Sparkles, Target, Zap, Wind, Thermometer, Activity, TrendingUp, Battery, Sun } from "lucide-react"
 
 interface Row {
   Region?: string
@@ -13,6 +13,21 @@ interface Row {
 
 type RegionCountryMap = Record<string, Set<string>>
 type YearMonthSet = Set<string>
+
+interface PredictionResponse {
+  predictions: {
+    "ASSD(kWh/m²/day)": number
+    "Temp(C)": number
+    "SP(kPa)": number
+    "wind speed(m/s)": number
+  }
+  energy_calculations: {
+    "Solar Energy (kWh/month)": number
+    "Wind Energy (kWh/month)": number
+    "Cooling Energy (kWh/month)": number
+    "Net Energy Balance (kWh/month)": number
+  }
+}
 
 interface SearchableSelectProps {
   options: string[]
@@ -121,6 +136,9 @@ export default function LocationSelectorForm(): React.ReactElement {
   const [yearSet, setYearSet] = React.useState<YearMonthSet>(new Set())
   const [monthSet, setMonthSet] = React.useState<YearMonthSet>(new Set())
   const [isLoading, setIsLoading] = React.useState(true)
+  const [predictionData, setPredictionData] = React.useState<PredictionResponse | null>(null)
+  const [isPredicting, setIsPredicting] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
 
   const countries = React.useMemo<string[]>(() => {
     if (!selectedRegion) return []
@@ -188,9 +206,53 @@ export default function LocationSelectorForm(): React.ReactElement {
 
   const isComplete = selectedRegion && selectedCountry && selectedYear && selectedMonth
 
+  const handleAnalyzeLocation = async () => {
+    if (!isComplete) return
+
+    setIsPredicting(true)
+    setError(null)
+    setPredictionData(null)
+
+    try {
+      const MODEL_BASE_URL = process.env.NEXT_PUBLIC_MODEL_BASE_URL || 'http://localhost:8000'
+      
+      const response = await fetch(`${MODEL_BASE_URL}/predict`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          region: selectedRegion,
+          country: selectedCountry,
+          year: selectedYear,
+          month: selectedMonth
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`)
+      }
+
+      const data: PredictionResponse = await response.json()
+      setPredictionData(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch prediction data')
+      console.error('Prediction API error:', err)
+    } finally {
+      setIsPredicting(false)
+    }
+  }
+
+  const formatNumber = (num: number, unit: string = '') => {
+    return `${num.toLocaleString('en-US', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    })}${unit}`
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/20 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
           <div className="flex items-center justify-center gap-3 mb-4">
@@ -268,7 +330,7 @@ export default function LocationSelectorForm(): React.ReactElement {
                     <h3 className="text-2xl font-bold text-white">Your Selection</h3>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div className="flex items-center gap-4 p-4 bg-gray-800/40 rounded-2xl">
                       <div className="p-2 bg-blue-500/20 rounded-xl">
                         <MapPin className="h-5 w-5 text-blue-400" />
@@ -290,11 +352,164 @@ export default function LocationSelectorForm(): React.ReactElement {
                     </div>
                   </div>
 
-                  <div className="mt-6 flex justify-center">
-                    <button className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-2xl hover:from-blue-600 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-3">
-                      <Target className="h-5 w-5" />
-                      Analyze Location
+                  <div className="flex justify-center">
+                    <button 
+                      onClick={handleAnalyzeLocation}
+                      disabled={isPredicting}
+                      className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-2xl hover:from-blue-600 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                      {isPredicting ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <Target className="h-5 w-5" />
+                          Analyze Location
+                        </>
+                      )}
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Display */}
+              {error && (
+                <div className="mt-8 p-6 bg-red-900/30 border-2 border-red-500/30 rounded-2xl backdrop-blur-md">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-red-500/20 rounded-xl">
+                      <Activity className="h-5 w-5 text-red-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-red-400">Analysis Error</h3>
+                  </div>
+                  <p className="text-gray-300">{error}</p>
+                </div>
+              )}
+
+              {/* Prediction Results */}
+              {predictionData && (
+                <div className="mt-12 space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                  {/* Environmental Predictions */}
+                  <div className="p-8 bg-gradient-to-r from-emerald-900/30 to-teal-900/30 border-2 border-emerald-500/30 rounded-3xl backdrop-blur-md">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-2 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl">
+                        <Activity className="h-6 w-6 text-white" />
+                      </div>
+                      <h3 className="text-2xl font-bold text-white">Environmental Conditions</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      <div className="p-6 bg-gray-800/40 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="p-2 bg-yellow-500/20 rounded-xl">
+                            <Sun className="h-5 w-5 text-yellow-400" />
+                          </div>
+                          <div className="text-sm text-gray-400 uppercase tracking-wider">Solar Irradiance</div>
+                        </div>
+                        <div className="text-2xl font-bold text-white">
+                          {formatNumber(predictionData.predictions["ASSD(kWh/m²/day)"], " kWh/m²/day")}
+                        </div>
+                      </div>
+
+                      <div className="p-6 bg-gray-800/40 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="p-2 bg-orange-500/20 rounded-xl">
+                            <Thermometer className="h-5 w-5 text-orange-400" />
+                          </div>
+                          <div className="text-sm text-gray-400 uppercase tracking-wider">Temperature</div>
+                        </div>
+                        <div className="text-2xl font-bold text-white">
+                          {formatNumber(predictionData.predictions["Temp(C)"], "°C")}
+                        </div>
+                      </div>
+
+                      <div className="p-6 bg-gray-800/40 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="p-2 bg-blue-500/20 rounded-xl">
+                            <Activity className="h-5 w-5 text-blue-400" />
+                          </div>
+                          <div className="text-sm text-gray-400 uppercase tracking-wider">Pressure</div>
+                        </div>
+                        <div className="text-2xl font-bold text-white">
+                          {formatNumber(predictionData.predictions["SP(kPa)"], " kPa")}
+                        </div>
+                      </div>
+
+                      <div className="p-6 bg-gray-800/40 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="p-2 bg-cyan-500/20 rounded-xl">
+                            <Wind className="h-5 w-5 text-cyan-400" />
+                          </div>
+                          <div className="text-sm text-gray-400 uppercase tracking-wider">Wind Speed</div>
+                        </div>
+                        <div className="text-2xl font-bold text-white">
+                          {formatNumber(predictionData.predictions["wind speed(m/s)"], " m/s")}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Energy Analysis */}
+                  <div className="p-8 bg-gradient-to-r from-purple-900/30 to-indigo-900/30 border-2 border-purple-500/30 rounded-3xl backdrop-blur-md">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-2 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl">
+                        <Zap className="h-6 w-6 text-white" />
+                      </div>
+                      <h3 className="text-2xl font-bold text-white">Energy Analysis</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <div className="p-6 bg-gray-800/40 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="p-2 bg-yellow-500/20 rounded-xl">
+                            <Sun className="h-5 w-5 text-yellow-400" />
+                          </div>
+                          <div className="text-sm text-gray-400 uppercase tracking-wider">Solar Energy</div>
+                        </div>
+                        <div className="text-2xl font-bold text-white">
+                          {formatNumber(predictionData.energy_calculations["Solar Energy (kWh/month)"], " kWh/month")}
+                        </div>
+                      </div>
+
+                      <div className="p-6 bg-gray-800/40 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="p-2 bg-cyan-500/20 rounded-xl">
+                            <Wind className="h-5 w-5 text-cyan-400" />
+                          </div>
+                          <div className="text-sm text-gray-400 uppercase tracking-wider">Wind Energy</div>
+                        </div>
+                        <div className="text-2xl font-bold text-white">
+                          {formatNumber(predictionData.energy_calculations["Wind Energy (kWh/month)"], " kWh/month")}
+                        </div>
+                      </div>
+
+                      <div className="p-6 bg-gray-800/40 rounded-2xl">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="p-2 bg-blue-500/20 rounded-xl">
+                            <Thermometer className="h-5 w-5 text-blue-400" />
+                          </div>
+                          <div className="text-sm text-gray-400 uppercase tracking-wider">Cooling Energy</div>
+                        </div>
+                        <div className="text-2xl font-bold text-white">
+                          {formatNumber(predictionData.energy_calculations["Cooling Energy (kWh/month)"], " kWh/month")}
+                        </div>
+                      </div>
+
+                      <div className="p-6 bg-gradient-to-r from-green-900/40 to-emerald-900/40 rounded-2xl border border-green-500/30">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="p-2 bg-green-500/20 rounded-xl">
+                            <Battery className="h-5 w-5 text-green-400" />
+                          </div>
+                          <div className="text-sm text-gray-400 uppercase tracking-wider">Net Energy Balance</div>
+                        </div>
+                        <div className="text-2xl font-bold text-green-400">
+                          {formatNumber(predictionData.energy_calculations["Net Energy Balance (kWh/month)"], " kWh/month")}
+                        </div>
+                      </div>
+                    </div>
+
+                    
                   </div>
                 </div>
               )}

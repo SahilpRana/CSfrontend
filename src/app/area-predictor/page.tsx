@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Papa from "papaparse"
-import { Search, ChevronDown, MapPin, Calendar, Clock, Target, Sparkles, AlertCircle, TrendingUp, Star, Globe } from "lucide-react"
+import { Search, ChevronDown, MapPin, Target, Sparkles, AlertCircle, TrendingUp, Star, Globe, Wind, Sun, Thermometer, Trophy, Award } from "lucide-react"
 
 interface Row {
   Region?: string
@@ -12,7 +12,22 @@ interface Row {
 }
 
 type RegionCountryMap = Record<string, Set<string>>
-type YearMonthSet = Set<string>
+
+interface CountryRanking {
+  country: string
+  solar_energy: number
+  wind_energy: number
+  cooling_energy: number
+  score: number
+  rank: number
+}
+
+interface RankingResponse {
+  region: string
+  years_forecast: number
+  top_countries: CountryRanking[]
+  best_country: string
+}
 
 interface SearchableSelectProps {
   options: string[]
@@ -158,16 +173,10 @@ export default function AreaPredictorPage(): React.ReactElement {
   const [regionCountryMap, setRegionCountryMap] = React.useState<RegionCountryMap>({})
   const [regions, setRegions] = React.useState<string[]>([])
   const [selectedRegion, setSelectedRegion] = React.useState("")
-  const [selectedYear, setSelectedYear] = React.useState("")
-  const [selectedMonth, setSelectedMonth] = React.useState("")
-  const [yearSet, setYearSet] = React.useState<YearMonthSet>(new Set())
-  const [monthSet, setMonthSet] = React.useState<YearMonthSet>(new Set())
   const [isLoading, setIsLoading] = React.useState(true)
-  const [prediction, setPrediction] = React.useState<string[]>([])
+  const [rankingData, setRankingData] = React.useState<RankingResponse | null>(null)
   const [isAnalyzing, setIsAnalyzing] = React.useState(false)
-
-  const years = React.useMemo(() => Array.from(yearSet).sort(), [yearSet])
-  const months = React.useMemo(() => Array.from(monthSet).sort((a, b) => Number(a) - Number(b)), [monthSet])
+  const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     let cancelled = false
@@ -184,29 +193,20 @@ export default function AreaPredictorPage(): React.ReactElement {
         })
 
         const regionMap: RegionCountryMap = {}
-        const yearSet: YearMonthSet = new Set()
-        const monthSet: YearMonthSet = new Set()
 
         for (const row of parsed.data) {
           const region = row.Region?.trim()
           const country = row.Country?.trim()
-          const year = row["year "]?.trim()
-          const month = row.month?.trim()
 
           if (region && country) {
             if (!regionMap[region]) regionMap[region] = new Set()
             regionMap[region].add(country)
           }
-
-          if (year) yearSet.add(year)
-          if (month) monthSet.add(month)
         }
 
         if (!cancelled) {
           setRegionCountryMap(regionMap)
           setRegions(Object.keys(regionMap).sort())
-          setYearSet(yearSet)
-          setMonthSet(monthSet)
           setIsLoading(false)
         }
       })
@@ -221,26 +221,76 @@ export default function AreaPredictorPage(): React.ReactElement {
   }, [])
 
   const handlePredict = async () => {
-    if (!selectedRegion || !selectedYear || !selectedMonth) return
+    if (!selectedRegion) return
 
     setIsAnalyzing(true)
+    setError(null)
+    setRankingData(null)
     
-    // Simulate AI processing time
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    // Get countries for the selected region and simulate AI ranking
-    const countries = regionCountryMap[selectedRegion]
-    if (countries) {
-      const countryList = Array.from(countries)
-      // Simulate AI prediction by shuffling and taking top results
-      const shuffled = [...countryList].sort(() => Math.random() - 0.5)
-      setPrediction(shuffled.slice(0, Math.min(5, shuffled.length)))
+    try {
+      const MODEL_BASE_URL = process.env.NEXT_PUBLIC_MODEL_BASE_URL || 'http://localhost:8000'
+      
+      const response = await fetch(`${MODEL_BASE_URL}/rank`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          region: selectedRegion
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`)
+      }
+
+      const data: RankingResponse = await response.json()
+      setRankingData(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch ranking data')
+      console.error('Ranking API error:', err)
+    } finally {
+      setIsAnalyzing(false)
     }
-    
-    setIsAnalyzing(false)
   }
 
-  const canPredict = selectedRegion && selectedYear && selectedMonth
+  const canPredict = selectedRegion
+
+  const formatEnergyValue = (value: number) => {
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(2)}M kWh`
+    } else if (value >= 1000) {
+      return `${(value / 1000).toFixed(1)}K kWh`
+    } else {
+      return `${value.toFixed(0)} kWh`
+    }
+  }
+
+  const getRankIcon = (rank: number) => {
+    switch (rank) {
+      case 1:
+        return <Trophy className="h-6 w-6 text-yellow-400" />
+      case 2:
+        return <Award className="h-6 w-6 text-gray-300" />
+      case 3:
+        return <Award className="h-6 w-6 text-orange-400" />
+      default:
+        return <Star className="h-6 w-6 text-blue-400" />
+    }
+  }
+
+  const getRankBorder = (rank: number) => {
+    switch (rank) {
+      case 1:
+        return 'border-yellow-500/50 bg-gradient-to-r from-yellow-900/20 to-amber-900/20'
+      case 2:
+        return 'border-gray-400/50 bg-gradient-to-r from-gray-800/20 to-slate-800/20'
+      case 3:
+        return 'border-orange-500/50 bg-gradient-to-r from-orange-900/20 to-red-900/20'
+      default:
+        return 'border-blue-500/30 bg-gradient-to-r from-blue-900/20 to-purple-900/20'
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/20 py-12 px-4">
@@ -256,7 +306,7 @@ export default function AreaPredictorPage(): React.ReactElement {
             </h1>
           </div>
           <p className="text-gray-300 text-lg max-w-3xl mx-auto">
-            Get AI-powered recommendations for the most suitable countries in your selected region and time period
+            Get AI-powered recommendations for the most suitable countries in your selected region
           </p>
         </div>
 
@@ -274,7 +324,7 @@ export default function AreaPredictorPage(): React.ReactElement {
                 <p className="text-gray-400">Loading data...</p>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <SearchableSelect
                   options={regions}
                   value={selectedRegion}
@@ -283,26 +333,6 @@ export default function AreaPredictorPage(): React.ReactElement {
                   icon={<Globe className="h-5 w-5" />}
                   label="Target Region"
                 />
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <SearchableSelect
-                    options={years}
-                    value={selectedYear}
-                    onChange={setSelectedYear}
-                    placeholder="Select year"
-                    icon={<Calendar className="h-5 w-5" />}
-                    label="Year"
-                  />
-
-                  <SearchableSelect
-                    options={months}
-                    value={selectedMonth}
-                    onChange={setSelectedMonth}
-                    placeholder="Select month"
-                    icon={<Clock className="h-5 w-5" />}
-                    label="Month"
-                  />
-                </div>
 
                 <button
                   onClick={handlePredict}
@@ -336,38 +366,95 @@ export default function AreaPredictorPage(): React.ReactElement {
               AI Recommendations
             </h2>
 
-            {prediction.length > 0 ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-6">
-                  <Star className="h-5 w-5 text-yellow-400" />
-                  <span className="text-gray-300">Top recommendations for {selectedRegion} in {selectedMonth}/{selectedYear}</span>
+            {error && (
+              <div className="mb-6 p-4 bg-red-900/30 border border-red-500/30 rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-400" />
+                  <span className="text-red-400 font-semibold">Error</span>
                 </div>
-                
-                {prediction.map((country, index) => (
-                  <div key={country} className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-2xl p-6 animate-in slide-in-from-right-4 duration-500" style={{ animationDelay: `${index * 100}ms` }}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full text-white font-bold text-sm">
-                          {index + 1}
+                <p className="text-gray-300 mt-2">{error}</p>
+              </div>
+            )}
+
+            {rankingData ? (
+              <div className="space-y-6">
+                {/* Best Country Highlight */}
+                <div className="bg-gradient-to-r from-green-900/30 to-emerald-900/30 border-2 border-green-500/50 rounded-2xl p-6">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Trophy className="h-6 w-6 text-yellow-400" />
+                    <span className="text-green-400 font-semibold">Best Recommendation</span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">{rankingData.best_country}</h3>
+                  <p className="text-gray-300">
+                    Top performer in {rankingData.region} with comprehensive analysis
+                  </p>
+                </div>
+
+                {/* Rankings List */}
+                <div className="space-y-4">
+                  {rankingData.top_countries.map((country, index) => (
+                    <div 
+                      key={country.country} 
+                      className={`border-2 rounded-2xl p-6 animate-in slide-in-from-right-4 duration-500 ${getRankBorder(country.rank)}`}
+                      style={{ animationDelay: `${index * 100}ms` }}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-4">
+                          {getRankIcon(country.rank)}
+                          <div>
+                            <h3 className="text-xl font-bold text-white">{country.country}</h3>
+                            <p className="text-gray-400 text-sm">Rank #{country.rank}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-white">{country}</h3>
-                          <p className="text-gray-400 text-sm">AI Confidence: {95 - index * 5}%</p>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-green-400">
+                            {formatEnergyValue(country.score)}
+                          </div>
+                          <div className="text-xs text-gray-400">Total Score</div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-green-400 font-semibold">Suitable</div>
-                        <div className="text-xs text-gray-400">Score: {(95 - index * 5) / 10}/10</div>
+
+                      {/* Energy Breakdown */}
+                      <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-600/30">
+                        <div className="text-center">
+                          <div className="flex items-center justify-center gap-2 mb-2">
+                            <Sun className="h-4 w-4 text-yellow-400" />
+                            <span className="text-xs text-gray-400 uppercase">Solar</span>
+                          </div>
+                          <div className="text-sm font-semibold text-white">
+                            {formatEnergyValue(country.solar_energy)}
+                          </div>
+                        </div>
+
+                        <div className="text-center">
+                          <div className="flex items-center justify-center gap-2 mb-2">
+                            <Wind className="h-4 w-4 text-cyan-400" />
+                            <span className="text-xs text-gray-400 uppercase">Wind</span>
+                          </div>
+                          <div className="text-sm font-semibold text-white">
+                            {formatEnergyValue(country.wind_energy)}
+                          </div>
+                        </div>
+
+                        <div className="text-center">
+                          <div className="flex items-center justify-center gap-2 mb-2">
+                            <Thermometer className="h-4 w-4 text-blue-400" />
+                            <span className="text-xs text-gray-400 uppercase">Cooling</span>
+                          </div>
+                          <div className="text-sm font-semibold text-white">
+                            {formatEnergyValue(country.cooling_energy)}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="text-center py-12">
                 <Target className="h-16 w-16 text-gray-600 mx-auto mb-4" />
                 <p className="text-gray-400 mb-2">No predictions yet</p>
-                <p className="text-gray-500 text-sm">Configure your parameters and click predict to see AI recommendations</p>
+                <p className="text-gray-500 text-sm">Select a region and click predict to see AI recommendations</p>
               </div>
             )}
           </div>

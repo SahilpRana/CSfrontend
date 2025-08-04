@@ -55,7 +55,7 @@ function SearchableSelect({ options, value, onChange, placeholder, disabled, ico
 
   return (
     <div className="space-y-3">
-      <label className=" text-sm font-semibold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+      <label className="text-sm font-semibold text-gray-200 uppercase tracking-wider flex items-center gap-2">
         <div className="text-blue-400">{icon}</div>
         {label}
       </label>
@@ -140,6 +140,37 @@ export default function LocationSelectorForm(): React.ReactElement {
   const [isPredicting, setIsPredicting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
+  // Month mapping for display names to numeric values
+  const monthMapping = {
+    'January': '1',
+    'February': '2',
+    'March': '3',
+    'April': '4',
+    'May': '5',
+    'June': '6',
+    'July': '7',
+    'August': '8',
+    'September': '9',
+    'October': '10',
+    'November': '11',
+    'December': '12'
+  }
+
+  const reverseMonthMapping = {
+    '1': 'January',
+    '2': 'February', 
+    '3': 'March',
+    '4': 'April',
+    '5': 'May',
+    '6': 'June',
+    '7': 'July',
+    '8': 'August',
+    '9': 'September',
+    '10': 'October',
+    '11': 'November',
+    '12': 'December'
+  }
+
   const countries = React.useMemo<string[]>(() => {
     if (!selectedRegion) return []
     const set = regionCountryMap[selectedRegion]
@@ -147,7 +178,14 @@ export default function LocationSelectorForm(): React.ReactElement {
   }, [selectedRegion, regionCountryMap])
 
   const years = React.useMemo(() => Array.from(yearSet).sort(), [yearSet])
-  const months = React.useMemo(() => Array.from(monthSet).sort((a, b) => Number(a) - Number(b)), [monthSet])
+  
+  // Convert numeric months to month names for display
+  const months = React.useMemo(() => {
+    const numericMonths = Array.from(monthSet).sort((a, b) => Number(a) - Number(b))
+    return numericMonths
+      .map(num => reverseMonthMapping[num.trim() as keyof typeof reverseMonthMapping])
+      .filter(Boolean)
+  }, [monthSet])
 
   React.useEffect(() => {
     let cancelled = false
@@ -179,7 +217,7 @@ export default function LocationSelectorForm(): React.ReactElement {
           }
 
           if (year) yearSet.add(year)
-          if (month) monthSet.add(month)
+          if (month) monthSet.add(month.trim())
         }
 
         if (!cancelled) {
@@ -214,7 +252,10 @@ export default function LocationSelectorForm(): React.ReactElement {
     setPredictionData(null)
 
     try {
-      const MODEL_BASE_URL = process.env.NEXT_PUBLIC_MODEL_BASE_URL || 'http://localhost:8000'
+      const MODEL_BASE_URL = process.env.NEXT_PUBLIC_MODEL_BASE_URL || "";
+      
+      // Convert month name back to numeric string for API request
+      const numericMonth = monthMapping[selectedMonth as keyof typeof monthMapping]
       
       const response = await fetch(`${MODEL_BASE_URL}/predict`, {
         method: 'POST',
@@ -225,7 +266,7 @@ export default function LocationSelectorForm(): React.ReactElement {
           region: selectedRegion,
           country: selectedCountry,
           year: selectedYear,
-          month: selectedMonth
+          month: numericMonth
         })
       })
 
@@ -342,12 +383,12 @@ export default function LocationSelectorForm(): React.ReactElement {
                     </div>
                     
                     <div className="flex items-center gap-4 p-4 bg-gray-800/40 rounded-2xl">
-                      <div className="p-2 bg-purple-500/20 rounded-xl">
-                        <Calendar className="h-5 w-5 text-purple-400" />
+                      <div className="p-2 bg-blue-500/20 rounded-xl">
+                        <Calendar className="h-5 w-5 text-blue-400" />
                       </div>
                       <div>
                         <div className="text-sm text-gray-400 uppercase tracking-wider">Time Period</div>
-                        <div className="text-white font-semibold">{selectedMonth}/{selectedYear}</div>
+                        <div className="text-white font-semibold">{selectedMonth} {selectedYear}</div>
                       </div>
                     </div>
                   </div>
@@ -402,8 +443,8 @@ export default function LocationSelectorForm(): React.ReactElement {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                       <div className="p-6 bg-gray-800/40 rounded-2xl">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-yellow-500/20 rounded-xl">
-                            <Sun className="h-5 w-5 text-yellow-400" />
+                          <div className="p-2 bg-emerald-500/20 rounded-xl">
+                            <Sun className="h-5 w-5 text-emerald-400" />
                           </div>
                           <div className="text-sm text-gray-400 uppercase tracking-wider">Solar Irradiance</div>
                         </div>
@@ -414,8 +455,8 @@ export default function LocationSelectorForm(): React.ReactElement {
 
                       <div className="p-6 bg-gray-800/40 rounded-2xl">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-orange-500/20 rounded-xl">
-                            <Thermometer className="h-5 w-5 text-orange-400" />
+                          <div className="p-2 bg-emerald-500/20 rounded-xl">
+                            <Thermometer className="h-5 w-5 text-emerald-400" />
                           </div>
                           <div className="text-sm text-gray-400 uppercase tracking-wider">Temperature</div>
                         </div>
@@ -426,8 +467,8 @@ export default function LocationSelectorForm(): React.ReactElement {
 
                       <div className="p-6 bg-gray-800/40 rounded-2xl">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-blue-500/20 rounded-xl">
-                            <Activity className="h-5 w-5 text-blue-400" />
+                          <div className="p-2 bg-emerald-500/20 rounded-xl">
+                            <Activity className="h-5 w-5 text-emerald-400" />
                           </div>
                           <div className="text-sm text-gray-400 uppercase tracking-wider">Pressure</div>
                         </div>
@@ -438,8 +479,8 @@ export default function LocationSelectorForm(): React.ReactElement {
 
                       <div className="p-6 bg-gray-800/40 rounded-2xl">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-cyan-500/20 rounded-xl">
-                            <Wind className="h-5 w-5 text-cyan-400" />
+                          <div className="p-2 bg-emerald-500/20 rounded-xl">
+                            <Wind className="h-5 w-5 text-emerald-400" />
                           </div>
                           <div className="text-sm text-gray-400 uppercase tracking-wider">Wind Speed</div>
                         </div>
@@ -450,7 +491,7 @@ export default function LocationSelectorForm(): React.ReactElement {
                     </div>
                   </div>
 
-                  {/* Energy Analysis */}
+                  {/* Energy Analysis - Only 3 items in grid now */}
                   <div className="p-8 bg-gradient-to-r from-purple-900/30 to-indigo-900/30 border-2 border-purple-500/30 rounded-3xl backdrop-blur-md">
                     <div className="flex items-center gap-3 mb-6">
                       <div className="p-2 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl">
@@ -459,11 +500,12 @@ export default function LocationSelectorForm(): React.ReactElement {
                       <h3 className="text-2xl font-bold text-white">Energy Analysis</h3>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    {/* 3 item grid for Solar, Wind, and Cooling Energy */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="p-6 bg-gray-800/40 rounded-2xl">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-yellow-500/20 rounded-xl">
-                            <Sun className="h-5 w-5 text-yellow-400" />
+                          <div className="p-2 bg-purple-500/20 rounded-xl">
+                            <Sun className="h-5 w-5 text-purple-400" />
                           </div>
                           <div className="text-sm text-gray-400 uppercase tracking-wider">Solar Energy</div>
                         </div>
@@ -474,8 +516,8 @@ export default function LocationSelectorForm(): React.ReactElement {
 
                       <div className="p-6 bg-gray-800/40 rounded-2xl">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-cyan-500/20 rounded-xl">
-                            <Wind className="h-5 w-5 text-cyan-400" />
+                          <div className="p-2 bg-purple-500/20 rounded-xl">
+                            <Wind className="h-5 w-5 text-purple-400" />
                           </div>
                           <div className="text-sm text-gray-400 uppercase tracking-wider">Wind Energy</div>
                         </div>
@@ -486,8 +528,8 @@ export default function LocationSelectorForm(): React.ReactElement {
 
                       <div className="p-6 bg-gray-800/40 rounded-2xl">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-blue-500/20 rounded-xl">
-                            <Thermometer className="h-5 w-5 text-blue-400" />
+                          <div className="p-2 bg-purple-500/20 rounded-xl">
+                            <Thermometer className="h-5 w-5 text-purple-400" />
                           </div>
                           <div className="text-sm text-gray-400 uppercase tracking-wider">Cooling Energy</div>
                         </div>
@@ -495,21 +537,29 @@ export default function LocationSelectorForm(): React.ReactElement {
                           {formatNumber(predictionData.energy_calculations["Cooling Energy (kWh/month)"], " kWh/month")}
                         </div>
                       </div>
+                    </div>
+                  </div>
 
-                      <div className="p-6 bg-gradient-to-r from-green-900/40 to-emerald-900/40 rounded-2xl border border-green-500/30">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-green-500/20 rounded-xl">
-                            <Battery className="h-5 w-5 text-green-400" />
-                          </div>
-                          <div className="text-sm text-gray-400 uppercase tracking-wider">Net Energy Balance</div>
+                  {/* Net Energy Balance - Separate section */}
+                  <div className="p-8 bg-gradient-to-r from-green-900/40 to-emerald-900/40 rounded-3xl border-2 border-green-500/30 backdrop-blur-md">
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-3 mb-4">
+                        <div className="p-3 bg-green-500/20 rounded-xl">
+                          <Battery className="h-8 w-8 text-green-400" />
                         </div>
-                        <div className="text-2xl font-bold text-green-400">
-                          {formatNumber(predictionData.energy_calculations["Net Energy Balance (kWh/month)"], " kWh/month")}
+                        <div>
+                          <div className="text-lg text-gray-300 uppercase tracking-wider font-semibold">Net Energy Balance</div>
+                          <div className="text-4xl font-bold text-green-400 mt-2">
+                            {formatNumber(predictionData.energy_calculations["Net Energy Balance (kWh/month)"], " kWh/month")}
+                          </div>
                         </div>
                       </div>
+                      <p className="text-gray-400 text-sm">
+                        {predictionData.energy_calculations["Net Energy Balance (kWh/month)"] > 0 
+                          ? "Positive energy balance - surplus energy available" 
+                          : "Negative energy balance - additional energy required"}
+                      </p>
                     </div>
-
-                    
                   </div>
                 </div>
               )}

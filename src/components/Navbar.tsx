@@ -85,7 +85,7 @@ export default function Navbar(): React.ReactElement {
               asChild
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
             >
-              <Link href="/location-selector">
+              <Link href="/analyze-location">
                 Get Started
               </Link>
             </Button>
@@ -137,7 +137,7 @@ export default function Navbar(): React.ReactElement {
                 asChild
                 className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 rounded-lg shadow-lg"
               >
-                <Link href="/location-selector" onClick={() => setIsMenuOpen(false)}>
+                <Link href="/analyze-location" onClick={() => setIsMenuOpen(false)}>
                   Get Started
                 </Link>
               </Button>

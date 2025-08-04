@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Brain, Target, MapPin, Calendar, Zap, Globe, TrendingUp, Database, Cpu, BarChart3, ArrowRight, Sparkles, Users, Shield, Clock } from "lucide-react"
+import { Brain, Target, MapPin, Calendar, Zap, Globe, TrendingUp, Database, Cpu, BarChart3, ArrowRight, Sparkles, Users, Shield, Clock, Eye } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,11 +11,11 @@ export default function HomePage(): React.ReactElement {
   const features = [
     {
       icon: Target,
-      title: "Location Selector",
+      title: "Analyze Location",
       description: "Find the perfect location based on your specific criteria and preferences using advanced AI analysis.",
-      href: "/location-selector",
+      href: "/analyze-location",
       color: "blue",
-      stats: "1M+ locations analyzed"
+      stats: "130+ countries"
     },
     {
       icon: BarChart3,
@@ -23,7 +23,7 @@ export default function HomePage(): React.ReactElement {
       description: "Predict future trends and analyze potential of different areas with predictive modeling.",
       href: "/area-predictor", 
       color: "green",
-      stats: "95% accuracy rate"
+      stats: "35K records processed"
     },
     {
       icon: Brain,
@@ -31,28 +31,22 @@ export default function HomePage(): React.ReactElement {
       description: "Learn how our sophisticated AI models process environmental, economic, and social data.",
       href: "/about",
       color: "purple",
-      stats: "Deep learning powered"
+      stats: "Deep search powered"
     }
   ]
 
   const stats = [
     {
       icon: Globe,
-      value: "195+",
+      value: "130+",
       label: "Countries Covered",
       color: "blue"
     },
     {
       icon: Database,
-      value: "50TB+", 
-      label: "Data Processed",
+      value: "35K+", 
+      label: "Records Processed",
       color: "green"
-    },
-    {
-      icon: Users,
-      value: "10K+",
-      label: "Active Users",
-      color: "purple"
     },
     {
       icon: TrendingUp,
@@ -69,14 +63,9 @@ export default function HomePage(): React.ReactElement {
       description: "Get comprehensive location insights in seconds, not weeks"
     },
     {
-      icon: Shield,
-      title: "Enterprise-Grade Security",
-      description: "Your data is protected with bank-level encryption and security"
-    },
-    {
-      icon: Clock,
-      title: "Real-Time Updates",
-      description: "Continuously updated data ensures you have the latest insights"
+      icon: Eye,
+      title: "Future Prospects",
+      description: "Advanced forecasting models predict upcoming market trends and opportunities"
     },
     {
       icon: Sparkles,
@@ -120,21 +109,21 @@ export default function HomePage(): React.ReactElement {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
             <Button asChild size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300">
-              <Link href="/location-selector" className="flex items-center gap-2">
+              <Link href="/analyze-location" className="flex items-center gap-2">
                 <Target className="h-5 w-5" />
                 Start Location Search
               </Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="border-slate-600 text-slate-300 hover:bg-slate-700/50 hover:border-slate-500 px-8 py-4 rounded-xl transition-all duration-300">
+            <Button asChild  size="lg" className="border-blue-500 text-blue-300 hover:bg-blue-600/20 hover:border-blue-400 px-8 py-4 rounded-xl transition-all duration-300">
               <Link href="/about" className="flex items-center gap-2">
-                <Brain className="h-5 w-5" />
+                <Brain className="h-5 w-5 text-blue-400" />
                 Learn More
               </Link>
             </Button>
           </div>
 
           {/* Stats Overview */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
             {stats.map((stat, index) => {
               const colorClasses = getColorClasses(stat.color)
               return (
@@ -177,7 +166,7 @@ export default function HomePage(): React.ReactElement {
                       <div className={`p-3 ${colorClasses.bg} rounded-lg group-hover:scale-110 transition-transform duration-300`}>
                         <feature.icon className={`h-8 w-8 ${colorClasses.text}`} />
                       </div>
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className={`text-xs ${colorClasses.text} bg-slate-700/50`}>
                         {feature.stats}
                       </Badge>
                     </div>
@@ -203,13 +192,13 @@ export default function HomePage(): React.ReactElement {
         {/* Benefits Section */}
         <section className="mb-20">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-white mb-4">Why Choose CarbonSync?</h2>
+            <h2 className="text-3xl font-bold text-white mb-4">Why Choose Cardinality?</h2>
             <p className="text-lg text-slate-300 max-w-2xl mx-auto">
               Advanced technology meets intuitive design for unparalleled location intelligence
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {benefits.map((benefit, index) => (
               <Card key={index} className="bg-slate-800/30 border-slate-700 hover:bg-slate-800/50 transition-all duration-300 group">
                 <CardContent className="p-6 text-center">
@@ -240,19 +229,19 @@ export default function HomePage(): React.ReactElement {
                   Ready to Find Your Perfect Location?
                 </h2>
                 <p className="text-xl text-slate-200 leading-relaxed mb-8 max-w-3xl mx-auto">
-                  Join thousands of businesses, researchers, and organizations using CarbonSync to make 
+                  Join thousands of businesses, researchers, and organizations using Cardinality to make 
                   <span className="text-blue-300 font-semibold"> data-driven location decisions</span>
                 </p>
               </div>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300">
-                  <Link href="/location-selector" className="flex items-center gap-2">
+                  <Link href="/analyze-location" className="flex items-center gap-2">
                     <Zap className="h-5 w-5" />
                     Get Started Now
                   </Link>
                 </Button>
-                <Button asChild variant="outline" size="lg" className="border-slate-600 text-slate-300 hover:bg-slate-700/50 hover:border-slate-500 px-8 py-4 rounded-xl transition-all duration-300">
+                <Button asChild  size="lg" className="border-slate-600 text-slate-300 hover:bg-slate-700/50 hover:border-slate-500 px-8 py-4 rounded-xl transition-all duration-300">
                   <Link href="/area-predictor" className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5" />
                     Try Area Predictor

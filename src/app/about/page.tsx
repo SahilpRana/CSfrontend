@@ -11,7 +11,7 @@ export default function AboutUsPage(): React.ReactElement {
       step: "01",
       icon: Database,
       title: "Data Aggregation",
-      description: "We collect and process vast amounts of climate, economic, demographic, and infrastructure data from reliable global sources.",
+      description: "We collect and process vast amounts of climate, economic and infrastructure data from reliable global sources.",
       color: "blue"
     },
     {
@@ -25,7 +25,7 @@ export default function AboutUsPage(): React.ReactElement {
       step: "03",
       icon: Target,
       title: "Smart Recommendations",
-      description: "Our models generate ranked location suggestions with confidence scores based on your specific criteria and timeline.",
+      description: "Our models generate ranked location suggestions with scores based on your specific criteria and timeline.",
       color: "purple"
     }
   ]
@@ -52,7 +52,7 @@ export default function AboutUsPage(): React.ReactElement {
     {
       icon: BarChart3,
       title: "Multi-Factor Scoring",
-      description: "Comprehensive evaluation weighing climate, economic, and social factors.",
+      description: "Comprehensive evaluation weighing climate, and economic factors.",
       color: "orange"
     }
   ]
@@ -95,7 +95,7 @@ export default function AboutUsPage(): React.ReactElement {
             </h1>
           </div>
           <p className="text-xl text-slate-300 max-w-3xl mx-auto leading-relaxed">
-            Advanced AI-powered location intelligence that analyzes environmental, economic, and social factors 
+            Advanced AI-powered location intelligence that analyzes environmental, and economic factors 
             to identify optimal locations for any region and time period.
           </p>
         </div>
@@ -119,7 +119,10 @@ export default function AboutUsPage(): React.ReactElement {
                 <Card key={index} className="bg-slate-800/50 border-slate-700 relative overflow-hidden">
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-4 mb-4">
-                      <Badge variant="secondary" className="text-lg font-bold px-3 py-1">
+                      <Badge
+                        variant="secondary"
+                        className={`text-lg font-bold px-3 py-1 ${colorClasses.bg} ${colorClasses.text} border-0`}
+                      >
                         {item.step}
                       </Badge>
                       <div className={`p-2 ${colorClasses.bg} rounded-lg`}>
@@ -254,11 +257,11 @@ export default function AboutUsPage(): React.ReactElement {
                 To <span className="text-blue-300 font-semibold">democratize access</span> to intelligent location insights, 
                 empowering <span className="text-green-300 font-semibold">businesses</span>, <span className="text-purple-300 font-semibold">researchers</span>, 
                 and <span className="text-orange-300 font-semibold">organizations</span> to make data-driven decisions about optimal locations based on 
-                comprehensive AI analysis of environmental, economic, and social factors.
+                comprehensive AI analysis of environmental, and economic factors.
               </p>
               
               {/* Enhanced badges with animations */}
-              <div className="flex flex-wrap justify-center gap-4 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 justify-items-center">
                 {[
                   { text: "Data-Driven", color: "from-blue-500 to-blue-600", delay: "delay-0" },
                   { text: "AI-Powered", color: "from-green-500 to-green-600", delay: "delay-200" },
@@ -267,9 +270,9 @@ export default function AboutUsPage(): React.ReactElement {
                 ].map((badge, index) => (
                   <div
                     key={index}
-                    className={`px-6 py-3 bg-gradient-to-r ${badge.color} text-white font-semibold rounded-full 
+                    className={`w-full px-6 py-3 bg-gradient-to-r ${badge.color} text-white font-semibold rounded-full 
                     transform hover:scale-105 transition-all duration-300 cursor-pointer shadow-lg 
-                    hover:shadow-xl animate-fade-in-up ${badge.delay}`}
+                    hover:shadow-xl animate-fade-in-up ${badge.delay} text-center`}
                   >
                     {badge.text}
                   </div>

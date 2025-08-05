@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Papa from "papaparse"
-import { Search, ChevronDown, MapPin, Calendar, Clock, Globe, Sparkles, Target, Zap, Wind, Thermometer, Activity, TrendingUp, Battery, Sun } from "lucide-react"
+import { Search, ChevronDown, MapPin, Calendar, Clock, Globe, Sparkles, Target, Zap, Wind, Thermometer, Activity, TrendingUp, Battery, Sun, Square } from "lucide-react"
 
 interface Row {
   Region?: string
@@ -12,21 +12,23 @@ interface Row {
 }
 
 type RegionCountryMap = Record<string, Set<string>>
-type YearMonthSet = Set<string>
 
-interface PredictionResponse {
-  predictions: {
-    "ASSD(kWh/m²/day)": number
-    "Temp(C)": number
-    "SP(kPa)": number
-    "wind speed(m/s)": number
-  }
-  energy_calculations: {
-    "Solar Energy (kWh/month)": number
-    "Wind Energy (kWh/month)": number
-    "Cooling Energy (kWh/month)": number
-    "Net Energy Balance (kWh/month)": number
-  }
+interface MonthlyPrediction {
+  Month: number
+  "ASSD(kWh/m²/day)": number
+  "Temp(C)": number
+  "SP(kPa)": number
+  "wind speed(m/s)": number
+  "SolarEnergy(kWh)": number
+  "WindEnergy(kWh)": number
+  "CoolingEnergy(kWh)": number
+}
+
+interface MonthlyPredictionResponse {
+  region: string
+  country: string
+  year: number
+  monthly_predictions: MonthlyPrediction[]
 }
 
 interface SearchableSelectProps {
@@ -42,6 +44,7 @@ interface SearchableSelectProps {
 function SearchableSelect({ options, value, onChange, placeholder, disabled, icon, label }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
+  const dropdownRef = React.useRef<HTMLDivElement>(null)
   
   const filteredOptions = options.filter(option =>
     option.toLowerCase().includes(search.toLowerCase())
@@ -53,17 +56,62 @@ function SearchableSelect({ options, value, onChange, placeholder, disabled, ico
     setSearch("")
   }
 
+  const toggleDropdown = () => {
+    if (!disabled) {
+      setIsOpen(!isOpen)
+      if (!isOpen) {
+        setSearch("")
+      }
+    }
+  }
+
+  // Handle clicking outside to close dropdown
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+        setSearch("")
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen])
+
+  // Handle escape key to close dropdown
+  React.useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        setIsOpen(false)
+        setSearch("")
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape)
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [isOpen])
+
   return (
     <div className="space-y-3">
       <label className="text-sm font-semibold text-gray-200 uppercase tracking-wider flex items-center gap-2">
         <div className="text-blue-400">{icon}</div>
         {label}
       </label>
-      <div className="relative">
+      <div className="relative" ref={dropdownRef}>
         <button
           type="button"
           disabled={disabled}
-          onClick={() => !disabled && setIsOpen(!isOpen)}
+          onClick={toggleDropdown}
           className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl border-2 transition-all duration-300 ${
             disabled 
               ? 'bg-gray-800/30 border-gray-700/30 text-gray-500 cursor-not-allowed backdrop-blur-sm' 
@@ -118,8 +166,6 @@ function SearchableSelect({ options, value, onChange, placeholder, disabled, ico
             </div>
           </div>
         )}
-        
-        {isOpen && <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />}
       </div>
     </div>
   )
@@ -131,61 +177,33 @@ export default function LocationSelectorForm(): React.ReactElement {
   const [selectedRegion, setSelectedRegion] = React.useState("")
   const [selectedCountry, setSelectedCountry] = React.useState("")
   const [selectedYear, setSelectedYear] = React.useState("")
-  const [selectedMonth, setSelectedMonth] = React.useState("")
+  const [dcSize, setDcSize] = React.useState("2000")
 
-  const [yearSet, setYearSet] = React.useState<YearMonthSet>(new Set())
-  const [monthSet, setMonthSet] = React.useState<YearMonthSet>(new Set())
   const [isLoading, setIsLoading] = React.useState(true)
-  const [predictionData, setPredictionData] = React.useState<PredictionResponse | null>(null)
+  const [predictionData, setPredictionData] = React.useState<MonthlyPredictionResponse | null>(null)
   const [isPredicting, setIsPredicting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  // Month mapping for display names to numeric values
-  const monthMapping = {
-    'January': '1',
-    'February': '2',
-    'March': '3',
-    'April': '4',
-    'May': '5',
-    'June': '6',
-    'July': '7',
-    'August': '8',
-    'September': '9',
-    'October': '10',
-    'November': '11',
-    'December': '12'
-  }
+  // Predefined years (2025-2050)
+  const years = React.useMemo(() => {
+    const yearArray = []
+    for (let year = 2025; year <= 2050; year++) {
+      yearArray.push(year.toString())
+    }
+    return yearArray
+  }, [])
 
-  const reverseMonthMapping = {
-    '1': 'January',
-    '2': 'February', 
-    '3': 'March',
-    '4': 'April',
-    '5': 'May',
-    '6': 'June',
-    '7': 'July',
-    '8': 'August',
-    '9': 'September',
-    '10': 'October',
-    '11': 'November',
-    '12': 'December'
-  }
+  // Month names for display
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ]
 
   const countries = React.useMemo<string[]>(() => {
     if (!selectedRegion) return []
     const set = regionCountryMap[selectedRegion]
     return set ? Array.from(set).sort() : []
   }, [selectedRegion, regionCountryMap])
-
-  const years = React.useMemo(() => Array.from(yearSet).sort(), [yearSet])
-  
-  // Convert numeric months to month names for display
-  const months = React.useMemo(() => {
-    const numericMonths = Array.from(monthSet).sort((a, b) => Number(a) - Number(b))
-    return numericMonths
-      .map(num => reverseMonthMapping[num.trim() as keyof typeof reverseMonthMapping])
-      .filter(Boolean)
-  }, [monthSet])
 
   React.useEffect(() => {
     let cancelled = false
@@ -202,29 +220,20 @@ export default function LocationSelectorForm(): React.ReactElement {
         })
 
         const regionMap: RegionCountryMap = {}
-        const yearSet: YearMonthSet = new Set()
-        const monthSet: YearMonthSet = new Set()
 
         for (const row of parsed.data) {
           const region = row.Region?.trim()
           const country = row.Country?.trim()
-          const year = row["year "]?.trim()
-          const month = row.month?.trim()
 
           if (region && country) {
             if (!regionMap[region]) regionMap[region] = new Set()
             regionMap[region].add(country)
           }
-
-          if (year) yearSet.add(year)
-          if (month) monthSet.add(month.trim())
         }
 
         if (!cancelled) {
           setRegionCountryMap(regionMap)
           setRegions(Object.keys(regionMap).sort())
-          setYearSet(yearSet)
-          setMonthSet(monthSet)
           setIsLoading(false)
         }
       })
@@ -242,7 +251,7 @@ export default function LocationSelectorForm(): React.ReactElement {
     setSelectedCountry("")
   }, [selectedRegion])
 
-  const isComplete = selectedRegion && selectedCountry && selectedYear && selectedMonth
+  const isComplete = selectedRegion && selectedCountry && selectedYear && dcSize
 
   const handleAnalyzeLocation = async () => {
     if (!isComplete) return
@@ -254,10 +263,7 @@ export default function LocationSelectorForm(): React.ReactElement {
     try {
       const MODEL_BASE_URL = process.env.NEXT_PUBLIC_MODEL_BASE_URL || "";
       
-      // Convert month name back to numeric string for API request
-      const numericMonth = monthMapping[selectedMonth as keyof typeof monthMapping]
-      
-      const response = await fetch(`${MODEL_BASE_URL}/predict`, {
+      const response = await fetch(`${MODEL_BASE_URL}/predictmonthly`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -265,8 +271,8 @@ export default function LocationSelectorForm(): React.ReactElement {
         body: JSON.stringify({
           region: selectedRegion,
           country: selectedCountry,
-          year: selectedYear,
-          month: numericMonth
+          year: parseInt(selectedYear),
+          dc_size_m2: parseInt(dcSize)
         })
       })
 
@@ -274,7 +280,7 @@ export default function LocationSelectorForm(): React.ReactElement {
         throw new Error(`API request failed: ${response.status} ${response.statusText}`)
       }
 
-      const data: PredictionResponse = await response.json()
+      const data: MonthlyPredictionResponse = await response.json()
       setPredictionData(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch prediction data')
@@ -284,16 +290,16 @@ export default function LocationSelectorForm(): React.ReactElement {
     }
   }
 
-  const formatNumber = (num: number, unit: string = '') => {
-    return `${num.toLocaleString('en-US', { 
-      minimumFractionDigits: 2, 
-      maximumFractionDigits: 2 
-    })}${unit}`
+  const formatNumber = (num: number, decimals: number = 2) => {
+    return num.toLocaleString('en-US', { 
+      minimumFractionDigits: decimals, 
+      maximumFractionDigits: decimals 
+    })
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/20 py-12 px-4">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
           <div className="flex items-center justify-center gap-3 mb-4">
@@ -301,11 +307,11 @@ export default function LocationSelectorForm(): React.ReactElement {
               <Globe className="h-8 w-8 text-white" />
             </div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              Location Intelligence
+              Monthly Energy Predictions
             </h1>
           </div>
           <p className="text-gray-300 text-lg max-w-2xl mx-auto">
-            Select your preferred region, country, and time period to discover optimal locations using our AI-powered analysis
+            Get comprehensive monthly energy analysis for your location with our AI-powered predictions
           </p>
         </div>
 
@@ -340,25 +346,30 @@ export default function LocationSelectorForm(): React.ReactElement {
                 />
               </div>
 
-              {/* Year & Month Row */}
+              {/* Year & DC Size Row */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <SearchableSelect
                   options={years}
                   value={selectedYear}
                   onChange={setSelectedYear}
-                  placeholder="Select year"
+                  placeholder="Select year (2025-2050)"
                   icon={<Calendar className="h-5 w-5" />}
                   label="Year"
                 />
 
-                <SearchableSelect
-                  options={months}
-                  value={selectedMonth}
-                  onChange={setSelectedMonth}
-                  placeholder="Select month"
-                  icon={<Clock className="h-5 w-5" />}
-                  label="Month"
-                />
+                <div className="space-y-3">
+                  <label className="text-sm font-semibold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                    <div className="text-blue-400"><Square className="h-5 w-5" /></div>
+                    Data Center Size (m²)
+                  </label>
+                  <input
+                    type="number"
+                    value={dcSize}
+                    onChange={(e) => setDcSize(e.target.value)}
+                    placeholder="Enter DC size in square meters"
+                    className="w-full px-5 py-4 bg-gray-800/40 border-2 border-gray-600/40 rounded-2xl text-white placeholder-gray-400 hover:bg-gray-700/50 hover:border-gray-500/60 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 backdrop-blur-md transition-all duration-300"
+                  />
+                </div>
               </div>
 
               {/* Selection Display */}
@@ -371,7 +382,7 @@ export default function LocationSelectorForm(): React.ReactElement {
                     <h3 className="text-2xl font-bold text-white">Your Selection</h3>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                     <div className="flex items-center gap-4 p-4 bg-gray-800/40 rounded-2xl">
                       <div className="p-2 bg-blue-500/20 rounded-xl">
                         <MapPin className="h-5 w-5 text-blue-400" />
@@ -387,8 +398,18 @@ export default function LocationSelectorForm(): React.ReactElement {
                         <Calendar className="h-5 w-5 text-blue-400" />
                       </div>
                       <div>
-                        <div className="text-sm text-gray-400 uppercase tracking-wider">Time Period</div>
-                        <div className="text-white font-semibold">{selectedMonth} {selectedYear}</div>
+                        <div className="text-sm text-gray-400 uppercase tracking-wider">Year</div>
+                        <div className="text-white font-semibold">{selectedYear}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 p-4 bg-gray-800/40 rounded-2xl">
+                      <div className="p-2 bg-blue-500/20 rounded-xl">
+                        <Square className="h-5 w-5 text-blue-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-400 uppercase tracking-wider">Data Center Size</div>
+                        <div className="text-white font-semibold">{dcSize} m²</div>
                       </div>
                     </div>
                   </div>
@@ -407,7 +428,7 @@ export default function LocationSelectorForm(): React.ReactElement {
                       ) : (
                         <>
                           <Target className="h-5 w-5" />
-                          Analyze Location
+                          Get Monthly Predictions
                         </>
                       )}
                     </button>
@@ -428,137 +449,146 @@ export default function LocationSelectorForm(): React.ReactElement {
                 </div>
               )}
 
-              {/* Prediction Results */}
+              {/* Monthly Predictions Table */}
               {predictionData && (
                 <div className="mt-12 space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-                  {/* Environmental Predictions */}
                   <div className="p-8 bg-gradient-to-r from-emerald-900/30 to-teal-900/30 border-2 border-emerald-500/30 rounded-3xl backdrop-blur-md">
                     <div className="flex items-center gap-3 mb-6">
                       <div className="p-2 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl">
-                        <Activity className="h-6 w-6 text-white" />
+                        <TrendingUp className="h-6 w-6 text-white" />
                       </div>
-                      <h3 className="text-2xl font-bold text-white">Environmental Conditions</h3>
+                      <h3 className="text-2xl font-bold text-white">Monthly Energy Analysis</h3>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                      <div className="p-6 bg-gray-800/40 rounded-2xl">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-emerald-500/20 rounded-xl">
-                            <Sun className="h-5 w-5 text-emerald-400" />
-                          </div>
-                          <div className="text-sm text-gray-400 uppercase tracking-wider">Solar Irradiance</div>
-                        </div>
-                        <div className="text-2xl font-bold text-white">
-                          {formatNumber(predictionData.predictions["ASSD(kWh/m²/day)"], " kWh/m²/day")}
-                        </div>
-                      </div>
-
-                      <div className="p-6 bg-gray-800/40 rounded-2xl">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-emerald-500/20 rounded-xl">
-                            <Thermometer className="h-5 w-5 text-emerald-400" />
-                          </div>
-                          <div className="text-sm text-gray-400 uppercase tracking-wider">Temperature</div>
-                        </div>
-                        <div className="text-2xl font-bold text-white">
-                          {formatNumber(predictionData.predictions["Temp(C)"], "°C")}
-                        </div>
-                      </div>
-
-                      <div className="p-6 bg-gray-800/40 rounded-2xl">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-emerald-500/20 rounded-xl">
-                            <Activity className="h-5 w-5 text-emerald-400" />
-                          </div>
-                          <div className="text-sm text-gray-400 uppercase tracking-wider">Pressure</div>
-                        </div>
-                        <div className="text-2xl font-bold text-white">
-                          {formatNumber(predictionData.predictions["SP(kPa)"], " kPa")}
-                        </div>
-                      </div>
-
-                      <div className="p-6 bg-gray-800/40 rounded-2xl">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-emerald-500/20 rounded-xl">
-                            <Wind className="h-5 w-5 text-emerald-400" />
-                          </div>
-                          <div className="text-sm text-gray-400 uppercase tracking-wider">Wind Speed</div>
-                        </div>
-                        <div className="text-2xl font-bold text-white">
-                          {formatNumber(predictionData.predictions["wind speed(m/s)"], " m/s")}
-                        </div>
-                      </div>
+                    {/* Responsive Table Container */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-full">
+                        <thead>
+                          <tr className="bg-gray-800/50 border-b border-gray-600/30">
+                            <th className="px-4 py-4 text-left text-sm font-semibold text-gray-300 uppercase tracking-wider">Month</th>
+                            <th className="px-4 py-4 text-left text-sm font-semibold text-gray-300 uppercase tracking-wider">
+                              <div className="flex items-center gap-2">
+                                <Sun className="h-4 w-4 text-yellow-400" />
+                                Solar Irradiance (kWh/m²/day)
+                              </div>
+                            </th>
+                            <th className="px-4 py-4 text-left text-sm font-semibold text-gray-300 uppercase tracking-wider">
+                              <div className="flex items-center gap-2">
+                                <Thermometer className="h-4 w-4 text-red-400" />
+                                Temperature (°C)
+                              </div>
+                            </th>
+                            <th className="px-4 py-4 text-left text-sm font-semibold text-gray-300 uppercase tracking-wider">
+                              <div className="flex items-center gap-2">
+                                <Activity className="h-4 w-4 text-blue-400" />
+                                Pressure (kPa)
+                              </div>
+                            </th>
+                            <th className="px-4 py-4 text-left text-sm font-semibold text-gray-300 uppercase tracking-wider">
+                              <div className="flex items-center gap-2">
+                                <Wind className="h-4 w-4 text-cyan-400" />
+                                Wind Speed (m/s)
+                              </div>
+                            </th>
+                            <th className="px-4 py-4 text-left text-sm font-semibold text-gray-300 uppercase tracking-wider">
+                              <div className="flex items-center gap-2">
+                                <Sun className="h-4 w-4 text-yellow-400" />
+                                Solar Energy (kWh)
+                              </div>
+                            </th>
+                            <th className="px-4 py-4 text-left text-sm font-semibold text-gray-300 uppercase tracking-wider">
+                              <div className="flex items-center gap-2">
+                                <Wind className="h-4 w-4 text-cyan-400" />
+                                Wind Energy (kWh)
+                              </div>
+                            </th>
+                            <th className="px-4 py-4 text-left text-sm font-semibold text-gray-300 uppercase tracking-wider">
+                              <div className="flex items-center gap-2">
+                                <Thermometer className="h-4 w-4 text-blue-400" />
+                                Cooling Energy (kWh)
+                              </div>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-700/30">
+                          {predictionData.monthly_predictions.map((prediction, index) => (
+                            <tr key={prediction.Month} className="hover:bg-gray-800/30 transition-colors duration-200">
+                              <td className="px-4 py-4 text-white font-medium">
+                                {monthNames[prediction.Month - 1]}
+                              </td>
+                              <td className="px-4 py-4 text-yellow-300 font-mono">
+                                {formatNumber(prediction["ASSD(kWh/m²/day)"])}
+                              </td>
+                              <td className="px-4 py-4 text-red-300 font-mono">
+                                {formatNumber(prediction["Temp(C)"])}
+                              </td>
+                              <td className="px-4 py-4 text-blue-300 font-mono">
+                                {formatNumber(prediction["SP(kPa)"])}
+                              </td>
+                              <td className="px-4 py-4 text-cyan-300 font-mono">
+                                {formatNumber(prediction["wind speed(m/s)"])}
+                              </td>
+                              <td className="px-4 py-4 text-yellow-300 font-mono font-semibold">
+                                {formatNumber(prediction["SolarEnergy(kWh)"], 0)}
+                              </td>
+                              <td className="px-4 py-4 text-cyan-300 font-mono font-semibold">
+                                {formatNumber(prediction["WindEnergy(kWh)"], 0)}
+                              </td>
+                              <td className="px-4 py-4 text-blue-300 font-mono font-semibold">
+                                {formatNumber(prediction["CoolingEnergy(kWh)"])}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  </div>
 
-                  {/* Energy Analysis - Only 3 items in grid now */}
-                  <div className="p-8 bg-gradient-to-r from-purple-900/30 to-indigo-900/30 border-2 border-purple-500/30 rounded-3xl backdrop-blur-md">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="p-2 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl">
-                        <Zap className="h-6 w-6 text-white" />
-                      </div>
-                      <h3 className="text-2xl font-bold text-white">Energy Analysis</h3>
-                    </div>
-                    
-                    {/* 3 item grid for Solar, Wind, and Cooling Energy */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Summary Statistics */}
+                    <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="p-6 bg-gray-800/40 rounded-2xl">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-purple-500/20 rounded-xl">
-                            <Sun className="h-5 w-5 text-purple-400" />
+                          <div className="p-2 bg-yellow-500/20 rounded-xl">
+                            <Sun className="h-5 w-5 text-yellow-400" />
                           </div>
-                          <div className="text-sm text-gray-400 uppercase tracking-wider">Solar Energy</div>
+                          <div className="text-sm text-gray-400 uppercase tracking-wider">Total Solar Energy</div>
                         </div>
-                        <div className="text-2xl font-bold text-white">
-                          {formatNumber(predictionData.energy_calculations["Solar Energy (kWh/month)"], " kWh/month")}
+                        <div className="text-2xl font-bold text-yellow-400">
+                          {formatNumber(
+                            predictionData.monthly_predictions.reduce((sum, p) => sum + p["SolarEnergy(kWh)"], 0),
+                            0
+                          )} kWh/year
                         </div>
                       </div>
 
                       <div className="p-6 bg-gray-800/40 rounded-2xl">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-purple-500/20 rounded-xl">
-                            <Wind className="h-5 w-5 text-purple-400" />
+                          <div className="p-2 bg-cyan-500/20 rounded-xl">
+                            <Wind className="h-5 w-5 text-cyan-400" />
                           </div>
-                          <div className="text-sm text-gray-400 uppercase tracking-wider">Wind Energy</div>
+                          <div className="text-sm text-gray-400 uppercase tracking-wider">Total Wind Energy</div>
                         </div>
-                        <div className="text-2xl font-bold text-white">
-                          {formatNumber(predictionData.energy_calculations["Wind Energy (kWh/month)"], " kWh/month")}
+                        <div className="text-2xl font-bold text-cyan-400">
+                          {formatNumber(
+                            predictionData.monthly_predictions.reduce((sum, p) => sum + p["WindEnergy(kWh)"], 0),
+                            0
+                          )} kWh/year
                         </div>
                       </div>
 
                       <div className="p-6 bg-gray-800/40 rounded-2xl">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="p-2 bg-purple-500/20 rounded-xl">
-                            <Thermometer className="h-5 w-5 text-purple-400" />
+                          <div className="p-2 bg-blue-500/20 rounded-xl">
+                            <Thermometer className="h-5 w-5 text-blue-400" />
                           </div>
-                          <div className="text-sm text-gray-400 uppercase tracking-wider">Cooling Energy</div>
+                          <div className="text-sm text-gray-400 uppercase tracking-wider">Total Cooling Energy</div>
                         </div>
-                        <div className="text-2xl font-bold text-white">
-                          {formatNumber(predictionData.energy_calculations["Cooling Energy (kWh/month)"], " kWh/month")}
+                        <div className="text-2xl font-bold text-blue-400">
+                          {formatNumber(
+                            predictionData.monthly_predictions.reduce((sum, p) => sum + p["CoolingEnergy(kWh)"], 0),
+                            0
+                          )} kWh/year
                         </div>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Net Energy Balance - Separate section */}
-                  <div className="p-8 bg-gradient-to-r from-green-900/40 to-emerald-900/40 rounded-3xl border-2 border-green-500/30 backdrop-blur-md">
-                    <div className="text-center">
-                      <div className="flex items-center justify-center gap-3 mb-4">
-                        <div className="p-3 bg-green-500/20 rounded-xl">
-                          <Battery className="h-8 w-8 text-green-400" />
-                        </div>
-                        <div>
-                          <div className="text-lg text-gray-300 uppercase tracking-wider font-semibold">Net Energy Balance</div>
-                          <div className="text-4xl font-bold text-green-400 mt-2">
-                            {formatNumber(predictionData.energy_calculations["Net Energy Balance (kWh/month)"], " kWh/month")}
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-gray-400 text-sm">
-                        {predictionData.energy_calculations["Net Energy Balance (kWh/month)"] > 0 
-                          ? "Positive energy balance - surplus energy available" 
-                          : "Negative energy balance - additional energy required"}
-                      </p>
                     </div>
                   </div>
                 </div>
@@ -570,18 +600,24 @@ export default function LocationSelectorForm(): React.ReactElement {
 
       <style jsx>{`
         .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
+          width: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(55, 65, 81, 0.3);
-          border-radius: 3px;
+          background: rgba(31, 41, 55, 0.5);
+          border-radius: 2px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(59, 130, 246, 0.5);
-          border-radius: 3px;
+          background: rgba(75, 85, 99, 0.8);
+          border-radius: 2px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(59, 130, 246, 0.7);
+          background: rgba(107, 114, 128, 0.9);
+        }
+        
+        /* Firefox scrollbar */
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(75, 85, 99, 0.8) rgba(31, 41, 55, 0.5);
         }
       `}</style>
     </div>
